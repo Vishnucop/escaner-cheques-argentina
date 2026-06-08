@@ -7,12 +7,14 @@ import re
 import io
 from PIL import Image
 import os
-import time
 
 # ==========================================
 # CONFIGURACIÓN DE TESSERACT
-pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 # ==========================================
+try:
+    pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+except:
+    pass  # En Streamlit Cloud usa la ruta por defecto
 
 st.set_page_config(
     page_title="Escáner de Cheques Argentina", 
@@ -21,7 +23,7 @@ st.set_page_config(
 )
 
 st.title("🏦 Escáner de Cheques - Argentina")
-st.markdown("Sube una foto del cheque o PDF para extraer datos automáticamente.")
+st.markdown("Sube una foto del cheque para extraer datos automáticamente.")
 
 # ==========================================
 # SESSION_STATE
@@ -70,7 +72,7 @@ def extraer_datos_cheque_argentino(texto):
     # Limpiar texto
     texto_limpio = re.sub(r'[^\w\s\-.,$/:]', ' ', texto)
     
-    # 1. FECHA - "04 de Marzo de 2026"
+    # 1. FECHA
     meses = r'(Enero|Febrero|Marzo|Abril|Mayo|Junio|Julio|Agosto|Septiembre|Octubre|Noviembre|Diciembre|Ene|Feb|Mar|Abr|May|Jun|Jul|Ago|Sep|Oct|Nov|Dic)'
     fecha_match = re.search(r'(?:EL|FECHA)?\s*(\d{1,2})\s+DE\s+' + meses + r'\s+DE\s+(\d{4})', texto_limpio, re.IGNORECASE)
     if fecha_match:
@@ -136,13 +138,9 @@ def extraer_datos_cheque_argentino(texto):
 
 def formatear_fecha(texto):
     """Autocompleta / en la fecha"""
-    # Remover todo lo que no sea número
     numeros = re.sub(r'[^0-9]', '', texto)
-    
-    # Limitar a 8 dígitos (DDMMYYYY)
     numeros = numeros[:8]
     
-    # Formatear
     if len(numeros) <= 2:
         return numeros
     elif len(numeros) <= 4:
@@ -168,31 +166,17 @@ with st.sidebar:
     st.caption("v1.0 - Escáner de Cheques Argentina")
 
 # ==========================================
-# UPLOAD
+# UPLOAD - SOLO IMÁGENES
 # ==========================================
 uploaded_file = st.file_uploader(
-    "📸 Sube la foto o PDF del cheque", 
-    type=["jpg", "jpeg", "png", "pdf"],
-    help="Formatos soportados: JPG, PNG, PDF"
+    "📸 Sube la foto del cheque", 
+    type=["jpg", "jpeg", "png"],
+    help="Formatos soportados: JPG, PNG"
 )
 
 if uploaded_file is not None:
     try:
-        # Convertir PDF a imagen
-        if uploaded_file.type == "application/pdf":
-            st.info("📄 Procesando PDF...")
-            try:
-                from pdf2image import convert_from_bytes
-                pdf_images = convert_from_bytes(uploaded_file.read())
-                image = pdf_images[0]
-                st.success("✅ PDF convertido")
-            except Exception as e:
-                st.error(f"❌ Error con PDF: {str(e)}")
-                st.warning("💡 Asegurate de tener Poppler instalado")
-                st.stop()
-        else:
-            image = Image.open(uploaded_file)
-        
+        image = Image.open(uploaded_file)
         img_array = np.array(image)
         img_procesada = mejorar_imagen(img_array, nivel_mejora)
         
@@ -241,7 +225,6 @@ if uploaded_file is not None:
                     value=st.session_state.datos_extraidos['fecha'],
                     help="Formato: DD/MM/AAAA"
                 )
-                # Auto-formatear fecha
                 if fecha_input:
                     fecha_formateada = formatear_fecha(fecha_input)
                     fecha_final = fecha_formateada
@@ -288,13 +271,12 @@ if uploaded_file is not None:
             st.session_state.datos_extraidos['banco_titular'] = banco_titular
 
             # ==========================================
-            # VERIFICACIÓN BCRA CON BOTÓN COPIAR
+            # VERIFICACIÓN BCRA
             # ==========================================
             st.markdown("---")
             st.subheader("🛡️ Verificación - BCRA")
             
             if documento_final:
-                # Limpiar documento
                 doc_limpio = documento_final.replace("-", "").replace(" ", "")
                 
                 if len(doc_limpio) == 11:
@@ -302,10 +284,8 @@ if uploaded_file is not None:
                 else:
                     cuit_formateado = doc_limpio
                 
-                # URL del BCRA
                 url_bcra = "https://www.bcra.gob.ar/situacion-crediticia/"
                 
-                # Mostrar CUIT con botón de copiar
                 st.success("📋 **CUIT/DNI para consultar:**")
                 
                 col_cuit1, col_cuit2 = st.columns([3, 1])
@@ -320,11 +300,9 @@ if uploaded_file is not None:
                     """, unsafe_allow_html=True)
                 
                 with col_cuit2:
-                    # Botón de copiar usando st.code (la mejor forma en Streamlit)
                     st.code(cuit_formateado.replace("-", ""), language=None)
                     st.caption("Copiá haciendo clic")
                 
-                # Botón al BCRA
                 st.link_button(
                     "🔎 IR AL BCRA - Situación Crediticia", 
                     url_bcra, 
@@ -334,7 +312,7 @@ if uploaded_file is not None:
                 
                 st.info(f"""
                 **📌 Instrucciones:**
-                1. Copiá el número de arriba (clic en el recuadro)
+                1. Copiá el número de arriba
                 2. Hacé clic en el botón azul para ir al BCRA
                 3. Pegá el CUIT: **{cuit_formateado}**
                 4. Completá el captcha y consultá
@@ -380,11 +358,10 @@ if uploaded_file is not None:
         st.error(f"❌ Error: {str(e)}")
         st.exception(e)
 else:
-    st.info("👆 Subí un archivo para comenzar")
+    st.info("👆 Subí una imagen (JPG o PNG) para comenzar")
     st.markdown("""
     **Características:**
     - ✅ Extracción automática de datos
-    - ✅ Soporte para PDF e imágenes
     - ✅ Verificación en BCRA
     - ✅ Exportación a Excel
     - ✅ 100% gratuito
