@@ -1,20 +1,11 @@
 import streamlit as st
 import cv2
 import numpy as np
-import pytesseract
 import pandas as pd
 import re
 import io
 from PIL import Image
-import os
-
-# ==========================================
-# CONFIGURACIÓN DE TESSERACT
-# ==========================================
-try:
-    pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
-except:
-    pass  # En Streamlit Cloud usa la ruta por defecto
+import easyocr
 
 st.set_page_config(
     page_title="Escáner de Cheques Argentina", 
@@ -40,6 +31,8 @@ if 'texto_ocr' not in st.session_state:
     st.session_state.texto_ocr = ''
 if 'ingreso_manual' not in st.session_state:
     st.session_state.ingreso_manual = False
+if 'reader' not in st.session_state:
+    st.session_state.reader = None
 
 # ==========================================
 # FUNCIONES
@@ -163,10 +156,18 @@ with st.sidebar:
     st.info("💡 **Consejos:**\n- Buena iluminación\n- Foto nítida\n- Todo el cheque visible")
     
     st.markdown("---")
-    st.caption("v1.0 - Escáner de Cheques Argentina")
+    st.caption("v2.0 - EasyOCR")
 
 # ==========================================
-# UPLOAD - SOLO IMÁGENES
+# INICIALIZAR EASYOCR
+# ==========================================
+if st.session_state.reader is None:
+    with st.spinner("Cargando motor OCR... (primera vez tarda 1-2 minutos)"):
+        st.session_state.reader = easyocr.Reader(['es', 'en'], gpu=False)
+    st.success("✅ OCR cargado")
+
+# ==========================================
+# UPLOAD
 # ==========================================
 uploaded_file = st.file_uploader(
     "📸 Sube la foto del cheque", 
@@ -191,9 +192,12 @@ if uploaded_file is not None:
 
         # Botón de extracción
         if st.button("🔍 Extraer Datos del Cheque", type="primary", use_container_width=True):
-            with st.spinner("Analizando cheque..."):
-                custom_config = r'--oem 3 --psm 6'
-                texto_extraido = pytesseract.image_to_string(img_procesada, lang='spa', config=custom_config)
+            with st.spinner("Analizando cheque con EasyOCR..."):
+                # EasyOCR lee directamente de la imagen procesada
+                results = st.session_state.reader.readtext(img_procesada)
+                
+                # Combinar todo el texto detectado
+                texto_extraido = ' '.join([result[1] for result in results])
                 
                 st.session_state.texto_ocr = texto_extraido
                 
@@ -313,7 +317,7 @@ if uploaded_file is not None:
                 st.info(f"""
                 **📌 Instrucciones:**
                 1. Copiá el número de arriba
-                2. Hacé clic en el botón azul para ir al BCRA
+                2. Hacé clic en el botón azul
                 3. Pegá el CUIT: **{cuit_formateado}**
                 4. Completá el captcha y consultá
                 """)
@@ -361,7 +365,7 @@ else:
     st.info("👆 Subí una imagen (JPG o PNG) para comenzar")
     st.markdown("""
     **Características:**
-    - ✅ Extracción automática de datos
+    - ✅ Extracción automática con EasyOCR
     - ✅ Verificación en BCRA
     - ✅ Exportación a Excel
     - ✅ 100% gratuito
