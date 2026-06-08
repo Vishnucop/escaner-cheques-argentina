@@ -1,6 +1,7 @@
-streamlit
-Pillow
-numpy
-pandas
-openpyxl
-pytesseract
+streamlit>=1.28.0
+Pillow>=9.0.0
+numpy>=1.21.0
+pandas>=1.3.0
+openpyxl>=3.0.0
+pytesseract>=0.3.8
+opencv-python-headless>=4.5.0
