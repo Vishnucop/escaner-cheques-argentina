@@ -3,5 +3,5 @@ Pillow>=9.0.0
 numpy>=1.21.0
 pandas>=1.3.0
 openpyxl>=3.0.0
-pytesseract>=0.3.8
+easyocr>=1.7.0
 opencv-python-headless>=4.5.0
